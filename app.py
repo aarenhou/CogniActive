@@ -1,14 +1,30 @@
-from flask import Flask, render_template, Response, jsonify, request
 import cv2
 import mediapipe as mp
 import numpy as np
 import json
-from datetime import datetime
 import csv
 import os
 import base64
+import pyrebase
+
+from flask import Flask, render_template, Response, jsonify, request
+from datetime import datetime
 from io import BytesIO
 from PIL import Image
+
+config = {
+    "apiKey": "",
+    "authDomain": "cogni-active.firebaseapp.com",
+    "databaseURL": "https://cogni-active-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "projectId": "cogni-active",
+    "storageBucket": "cogni-active.firebasestorage.app",
+    "messagingSenderId": "",
+    "appId": "",
+    "measurementId": ""
+};
+firebase = pyrebase.initialize_app(config)
+
+db = firebase.database()
 
 # web application initialization
 app = Flask(__name__)
@@ -51,7 +67,7 @@ def init_pose():
         static_image_mode=False
     )
 
-# 初始化 pose model
+# initailize pose model
 pose = init_pose()
 
 def process_frame(image_data):
@@ -193,15 +209,15 @@ def stop_recording():
         
         is_recording = False
         
-        if not os.path.exists('recordings'):
-            os.makedirs('recordings')
+        # if not os.path.exists('recordings'):
+        #     os.makedirs('recordings')
         
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        csv_filename = f'recordings/pose_data_{timestamp}.csv'
-        json_filename = f'recordings/pose_data_{timestamp}.json'
+        # csv_filename = f'recordings/pose_data_{timestamp}.csv'      
+        # json_filename = f'recordings/pose_data_{timestamp}.json'
         
-        # 保存 CSV
-        with open(csv_filename, 'w', newline='', encoding='utf-8-sig') as csvfile:
+        # save to CSV
+        '''with open(csv_filename, 'w', newline='', encoding='utf-8-sig') as csvfile:
             if recorded_data:
                 fieldnames = ['timestamp']
                 for i in range(33):
@@ -218,9 +234,8 @@ def stop_recording():
                         row[f'landmark_{i}_y'] = round(landmark['y'], 6)
                         row[f'landmark_{i}_z'] = round(landmark['z'], 6)
                         row[f'landmark_{i}_visibility'] = round(landmark['visibility'], 6)
-                    writer.writerow(row)
-        
-        # 保存 JSON
+                    writer.writerow(row)'''
+        # save to JSON
         json_data = {
             'recording_info': {
                 'timestamp': timestamp,
@@ -246,8 +261,10 @@ def stop_recording():
                 })
             json_data['frames'].append(frame_data)
         
-        with open(json_filename, 'w', encoding='utf-8') as jsonfile:
-            json.dump(json_data, jsonfile, indent=2, ensure_ascii=False)
+        db.child("pose_json").push(json_data)
+
+        # with open(json_filename, 'w', encoding='utf-8') as jsonfile:
+        #     json.dump(json_data, jsonfile, indent=2, ensure_ascii=False)
         
         data_count = len(recorded_data)
         recorded_data = []
@@ -256,8 +273,8 @@ def stop_recording():
         return jsonify({
             'status': 'success',
             'message': '記錄已經保存',
-            'csv_filename': csv_filename,
-            'json_filename': json_filename,
+            # 'csv_filename': csv_filename,
+            # 'json_filename': json_filename,
             'records': data_count
         })
     except Exception as e:
@@ -279,4 +296,8 @@ def recording_status():
     return jsonify(status)
 
 if __name__ == '__main__':
+<<<<<<< HEAD
     app.run(debug=True, threaded=True, host='0.0.0.0', port=10000)
+=======
+    app.run(debug=True, threaded=True, host='0.0.0.0', port=5000)
+>>>>>>> 922b27e (暫存目前修改)

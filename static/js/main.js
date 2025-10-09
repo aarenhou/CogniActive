@@ -15,7 +15,7 @@ let chartData = {
 
 const MAX_DATA_POINTS = 50;
 
-// per 100 ms send one frame
+// per 100 ms send one frame (value set 100), but system configuration need to 1 second (value set 1000)
 const FRAME_INTERVAL = 100; 
 
 function toggleCamera() {
@@ -44,10 +44,10 @@ function toggleCamera() {
             videoElement.style.display = 'none';
             document.body.appendChild(videoElement);
             
-            // create canvas
+            // create canvas (640 * 480, 320 * 240)
             canvasElement = document.createElement('canvas');
-            canvasElement.width = 640;
-            canvasElement.height = 480;
+            canvasElement.width = 320;
+            canvasElement.height = 240;
             
             // show processing video
             const videoFeed = document.getElementById('videoFeed');
