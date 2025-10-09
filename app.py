@@ -296,8 +296,4 @@ def recording_status():
     return jsonify(status)
 
 if __name__ == '__main__':
-<<<<<<< HEAD
-    app.run(debug=True, threaded=True, host='0.0.0.0', port=10000)
-=======
     app.run(debug=True, threaded=True, host='0.0.0.0', port=5000)
->>>>>>> 922b27e (暫存目前修改)
