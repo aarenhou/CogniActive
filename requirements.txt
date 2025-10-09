@@ -23,8 +23,7 @@ mediapipe==0.10.14
 ml_dtypes==0.5.3
 nbformat==5.9.2
 numpy==1.24.0
-opencv-contrib-python==4.11.0.86
-opencv-python==4.8.1.78
+opencv-python-headless
 opt_einsum==3.4.0
 packaging==25.0
 pillow==11.3.0
