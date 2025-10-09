@@ -149,6 +149,10 @@ def process_frame(image_data):
 def index():
     return render_template('index.html')
 
+@app.route('/favicon.ico')
+def favicon():
+    return Response(status=204)
+
 @app.route('/process_frame', methods=['POST'])
 def process_frame_route():
     # receive frame from frontend data and process
