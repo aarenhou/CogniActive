@@ -16,7 +16,14 @@ from PIL import Image
 
 # Firebase configuration
 config = {
-    
+    "apiKey": "",
+    "authDomain": "cogni-active.firebaseapp.com",
+    "databaseURL": "https://cogni-active-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "projectId": "cogni-active",
+    "storageBucket": "cogni-active.firebasestorage.app",
+    "messagingSenderId": "",
+    "appId": "",
+    "measurementId": ""
 };
 firebase = pyrebase.initialize_app(config)
 db = firebase.database()
