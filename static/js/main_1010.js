@@ -4,7 +4,6 @@ let updateInterval = null;
 let videoStream = null;
 let videoElement = null;
 let canvasElement = null;
-let processingFrame = false;
 let chartData = {
     timestamps: [],
     leftElbow: [],
@@ -16,11 +15,8 @@ let chartData = {
 
 const MAX_DATA_POINTS = 50;
 
-// Frame interval: 200 ms to reduce server load (5 FPS instead of 10 FPS)
-const FRAME_INTERVAL = 100;
-
-// Maximum retry attempts for frame processing
-const MAX_RETRY_ATTEMPTS = 3;
+// per 100 ms send one frame (value set 100), but system configuration need to 1 second (value set 1000)
+const FRAME_INTERVAL = 100; 
 
 function toggleCamera() {
     const btn = document.getElementById('btnCamera');
@@ -29,7 +25,7 @@ function toggleCamera() {
         btn.disabled = true;
         btn.innerHTML = 'Camera 啟動中<span class="loading"></span>';
         
-        // Request user camera permission
+        // ask the user to permission of camera
         navigator.mediaDevices.getUserMedia({ 
             video: { 
                 width: 640, 
@@ -41,19 +37,19 @@ function toggleCamera() {
             videoStream = stream;
             cameraActive = true;
             
-            // Create video element to display camera stream
+            // create video element to show camera stream
             videoElement = document.createElement('video');
             videoElement.srcObject = stream;
             videoElement.autoplay = true;
             videoElement.style.display = 'none';
             document.body.appendChild(videoElement);
             
-            // Create canvas for frame capture (reduced resolution to save bandwidth)
+            // create canvas (640 * 480, 320 * 240)
             canvasElement = document.createElement('canvas');
-            canvasElement.width = 320;  // Reduced from 640
-            canvasElement.height = 240; // Reduced from 480
+            canvasElement.width = 320;
+            canvasElement.height = 240;
             
-            // Display processed video
+            // show processing video
             const videoFeed = document.getElementById('videoFeed');
             videoFeed.style.display = 'block';
             document.getElementById('videoPlaceholder').style.display = 'none';
@@ -63,10 +59,7 @@ function toggleCamera() {
             document.getElementById('btnRecord').disabled = false;
             showStatus('鏡頭已經啟動', 'active');
             
-            // Initialize processing thread on backend
-            initProcessingThread();
-            
-            // Start processing frames
+            // start processing frames
             startProcessingFrames();
             startUpdating();
         })
@@ -74,7 +67,7 @@ function toggleCamera() {
             console.error('Error accessing camera:', error);
             btn.innerHTML = '開啟鏡頭';
             btn.disabled = false;
-            showStatus('無法啟動鏡頭,請確認權限設定', 'error');
+            showStatus('無法啟動鏡頭，請確認權限設定', 'error');
         });
     } else {
         stopCamera();
@@ -85,7 +78,6 @@ function toggleCamera() {
 
 function stopCamera() {
     cameraActive = false;
-    processingFrame = false;
     
     if (videoStream) {
         videoStream.getTracks().forEach(track => track.stop());
@@ -106,18 +98,6 @@ function stopCamera() {
     recording = false;
 }
 
-function initProcessingThread() {
-    // Initialize backend processing thread
-    fetch('/start_processing', { method: 'POST' })
-        .then(response => response.json())
-        .then(data => {
-            console.log('[INFO] Processing thread initialized:', data.message);
-        })
-        .catch(error => {
-            console.error('[ERROR] Failed to initialize processing thread:', error);
-        });
-}
-
 function startProcessingFrames() {
     if (!cameraActive) return;
     
@@ -127,73 +107,40 @@ function startProcessingFrames() {
     function processFrame() {
         if (!cameraActive || !videoElement) return;
         
-        // Skip if already processing a frame (prevent queue buildup)
-        if (processingFrame) {
-            setTimeout(processFrame, FRAME_INTERVAL);
-            return;
-        }
-        
-        processingFrame = true;
-        
-        // Draw video frame to canvas
+        // video to canvas
         ctx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
         
-        // Convert to base64 with compression
-        const imageData = canvasElement.toDataURL('image/jpeg', 0.6); // Reduced quality to 0.6
+        // convert to base64
+        const imageData = canvasElement.toDataURL('image/jpeg', 0.8);
         
-        // Send to backend for processing
-        sendFrameWithRetry(imageData, 0)
-            .then(data => {
-                if (data.status === 'success' && data.image) {
-                    // Display processed image
-                    videoFeed.src = data.image;
-                    
-                    // Update visualizations with pose data
-                    if (data.landmarks) {
-                        updateLineChart(data.landmarks);
-                        update3DPlots(data.landmarks);
-                    }
+        // return backend
+        fetch('/process_frame', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ image: imageData })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success' && data.image) {
+                // show processed image
+                videoFeed.src = data.image;
+                
+                // update charts
+                if (data.landmarks) {
+                    updateLineChart(data.landmarks);
+                    update3DPlots(data.landmarks);
                 }
-            })
-            .catch(error => {
-                console.error('[ERROR] Frame processing failed:', error);
-            })
-            .finally(() => {
-                processingFrame = false;
-                // Schedule next frame
-                setTimeout(processFrame, FRAME_INTERVAL);
-            });
+            }
+        })
+        .catch(error => console.error('Error processing frame:', error));
+        
+        // process next frame
+        setTimeout(processFrame, FRAME_INTERVAL);
     }
     
-    // Start frame processing loop
     processFrame();
-}
-
-function sendFrameWithRetry(imageData, attemptCount) {
-    // Retry mechanism to handle temporary network issues
-    return fetch('/process_frame', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ image: imageData })
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
-    })
-    .catch(error => {
-        if (attemptCount < MAX_RETRY_ATTEMPTS) {
-            console.warn(`[WARN] Retry attempt ${attemptCount + 1}/${MAX_RETRY_ATTEMPTS}`);
-            // Wait briefly before retry
-            return new Promise(resolve => setTimeout(resolve, 100))
-                .then(() => sendFrameWithRetry(imageData, attemptCount + 1));
-        } else {
-            throw error;
-        }
-    });
 }
 
 function startRecording() {
@@ -206,7 +153,7 @@ function startRecording() {
                 document.getElementById('btnStop').disabled = false;
                 showStatus('開始記錄資料', 'recording');
                 
-                // Reset chart data
+                // reset chart data
                 chartData = {
                     timestamps: [],
                     leftElbow: [],
@@ -216,10 +163,6 @@ function startRecording() {
                     startTime: null
                 };
             }
-        })
-        .catch(error => {
-            console.error('[ERROR] Start recording failed:', error);
-            showStatus('記錄啟動失敗', 'error');
         });
 }
 
@@ -231,12 +174,8 @@ function stopRecording() {
                 recording = false;
                 document.getElementById('btnRecord').disabled = false;
                 document.getElementById('btnStop').disabled = true;
-                showStatus(`停止記錄資料 (共 ${data.records} 筆)`, 'active');
+                showStatus('停止記錄資料', 'active');
             }
-        })
-        .catch(error => {
-            console.error('[ERROR] Stop recording failed:', error);
-            showStatus('記錄停止失敗', 'error');
         });
 }
 
@@ -254,8 +193,7 @@ function showStatus(message, type) {
 }
 
 function startUpdating() {
-    // Monitor queue status periodically
-    updateInterval = setInterval(checkQueueStatus, 5000); // Every 5 seconds
+    // no need for extra update interval as we update during frame processing
 }
 
 function stopUpdating() {
@@ -263,22 +201,6 @@ function stopUpdating() {
         clearInterval(updateInterval);
         updateInterval = null;
     }
-}
-
-function checkQueueStatus() {
-    // Monitor backend queue status for debugging
-    fetch('/queue_status')
-        .then(response => response.json())
-        .then(data => {
-            console.log('[INFO] Queue status:', data);
-            // Alert if queue is building up
-            if (data.frame_queue_size > 2) {
-                console.warn('[WARN] Frame queue building up:', data.frame_queue_size);
-            }
-        })
-        .catch(error => {
-            console.error('[ERROR] Failed to check queue status:', error);
-        });
 }
 
 function update3DPlots(landmarks) {
@@ -425,7 +347,7 @@ function updateLineChart(landmarks) {
     });
 }
 
-// Initialize empty plots on page load
+// Initialize Empty Plots
 window.onload = function() {
     const emptyLayout = {
         xaxis: { 
