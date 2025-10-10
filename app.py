@@ -370,12 +370,9 @@ def queue_status():
 start_processing_thread()
 
 if __name__ == '__main__':
-<<<<<<< HEAD
-    app.run(debug=True, threaded=True, host='0.0.0.0', port=5000)
-=======
     try:
-        app.run(debug=False, threaded=True, host='0.0.0.0', port=5000)
+        app.run(debug=False, threaded=True, host='0.0.0.0', port=10000)
     finally:
         # Cleanup on shutdown
         stop_processing_thread()
->>>>>>> c772c8c (second update)
+
