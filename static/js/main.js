@@ -16,7 +16,7 @@ let chartData = {
 
 const MAX_DATA_POINTS = 50;
 
-// Frame interval: 200 ms to reduce server load (5 FPS instead of 10 FPS)
+// Frame interval: 100 ms to reduce server load (5 FPS instead of 10 FPS)
 const FRAME_INTERVAL = 100;
 
 // Maximum retry attempts for frame processing
